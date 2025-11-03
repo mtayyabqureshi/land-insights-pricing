@@ -1,2 +1,2 @@
 # land-insights-pricing
-A web scraper for collecting and analyzing pricing data from the LandInsights platform.
+A Selenium-based web scraper that automates login and user interactions on the LandInsights platform to collect and analyze properties pricing data.
