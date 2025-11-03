@@ -1,0 +1,86 @@
+import pandas as pd
+import time
+import random
+import undetected_chromedriver as uc
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from datetime import datetime
+
+# Delay function
+
+def human_delay(min_sec=1, max_sec=3):
+    time.sleep(random.uniform(min_sec, max_sec))
+
+# CSV
+csv_path = r"D:\Work\Python\Brownstone Land\data\tipton_county.csv"
+df = pd.read_csv(csv_path)
+
+if 'ACV' not in df.columns:
+    raise ValueError("'ACV' column not found in the CSV.")
+
+# Setup Chrome
+
+options = uc.ChromeOptions()
+options.add_argument("--start-maximized")
+# options.add_argument("--headless")  # Optional: run silently
+options.add_argument("--disable-blink-features=AutomationControlled")
+
+driver = uc.Chrome(options=options)
+
+# Login (ALWAYS at start)
+
+print("Logging into Land Insights...")
+driver.get("https://app.landinsights.co/")
+time.sleep(2)
+driver.refresh()
+
+# Land Insights credentials.
+driver.find_element(By.NAME, "email").send_keys("username@gmail.com") 
+driver.find_element(By.NAME, "password").send_keys("password")     
+
+login_button = driver.find_element(
+    By.XPATH, "//button[contains(text(), 'Login') and not(contains(text(), 'Google'))]"
+)
+login_button.click()
+time.sleep(5)
+print("Login successful.")
+
+
+# Scraping Loop
+start_time = datetime.now()
+print(f"Script started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+for index, row in df.iterrows():
+    existing_price = str(row.get('ACV', "")).strip()
+    if existing_price and existing_price.lower() != "nan":
+        print(f"[{index + 1}] Skipping already scraped: {existing_price}")
+        continue
+
+    url = row['Parcel Link']
+    print(f"[{index + 1}] Visiting: {url}")
+    driver.get(url)
+    human_delay(2, 4)
+
+    try:
+        price_element = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((
+                By.XPATH,
+                "//div[contains(@class, 'lui-color-blue-500') and contains(text(), '$')]"
+            ))
+        )
+        scraped_price = price_element.text.strip()
+        df.at[index, 'ACV'] = scraped_price
+        print(f"[{index + 1}] Scraped: {scraped_price}")
+    except Exception as e:
+        print(f"[{index + 1}] Failed to scrape: {url} — {e}")
+
+    df.to_csv("output.csv", index=False)
+    human_delay(2, 5)
+
+
+end_time = datetime.now()
+print(f"Script ended at: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"⏱ Total duration: {str(end_time - start_time)}")
+driver.quit()
+print("All done! Data saved to 'scraped_output.csv'.")
